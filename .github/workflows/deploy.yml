@@ -17,13 +17,13 @@ jobs:
       - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2' # Sesuaikan dengan versi PHP Anda (8.2 / 8.3 / 8.4)
+          php-version: '8.3'
           extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, fileinfo, gd, zip, curl
           coverage: none
 
       - name: 📦 Install Composer Dependencies
         run: |
-          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction --ignore-platform-reqs
+          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
 
       - name: 🟢 Setup Node.js & Compile Vite Assets
         uses: actions/setup-node@v4
