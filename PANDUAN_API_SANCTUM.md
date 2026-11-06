@@ -6,7 +6,7 @@ Panduan ini menjelaskan implementasi dan pengujian API JSON yang memakai token L
 
 ## 1. Kondisi proyek saat ini
 
-Proyek menggunakan Laravel `^13.8` dan Sanctum `^4.0`. Rute API sudah didaftarkan di `bootstrap/app.php`. Implementasi API saat ini menyediakan `POST /api/login`, `GET /api/me`, `POST /api/logout`, dan `GET /api/schedules`.
+Proyek menggunakan Laravel `^13.8` dan Sanctum `^4.0`. Rute API didaftarkan di `bootstrap/app.php`. API yang aktif mencakup autentikasi, jadwal, jurnal, presensi, laporan, pengajuan/verifikasi izin, dan pengelolaan profil. Otorisasi mobile menggunakan nama role dari relasi pengguna; jangan mengasumsikan ID role.
 
 Tabel `personal_access_tokens` juga sudah memiliki migration di:
 
@@ -204,7 +204,7 @@ Catatan:
 
 ## 6. Contoh endpoint baca jadwal
 
-Contoh ini menyediakan `GET /api/schedules`. Pengguna ber-role `1` (Waka) dapat melihat seluruh jadwal; pengguna ber-role `2` (Guru) hanya dapat melihat jadwal miliknya. Role lain menerima `403 Forbidden`. Pemetaan role mengikuti pengecekan yang sudah digunakan `ScheduleController` di proyek.
+Catatan: contoh kode historis di bawah bukan implementasi yang harus ditempel ulang. `app/Http/Controllers/Api/ScheduleController.php` adalah implementasi aktif dan otorisasi saat ini memakai role `Guru`, `Wali Kelas`, `Siswa`, dan `Orang Tua` berdasarkan nama role. Wali Kelas/Guru hanya melihat jadwal yang diajar; Siswa melihat kelasnya; Orang Tua hanya melihat jadwal anak yang ditautkan.
 
 Buat file `app/Http/Controllers/Api/ScheduleController.php`:
 
@@ -322,6 +322,8 @@ Bagian ini **bukan kode yang perlu ditempel ke file PHP**. Tabel di bawah adalah
 | `GET` | `/api/me` | Bearer token | Mengambil profil pengguna yang sedang terautentikasi |
 | `POST` | `/api/logout` | Bearer token | Menghapus token yang digunakan pada request |
 | `GET` | `/api/schedules` | Bearer token | Mengambil jadwal sesuai role; opsional `cycle_type=1` atau `2` |
+
+Route mobile tambahan yang aktif adalah `GET /api/children` (Orang Tua), `GET /api/leave-requests/mine` (Siswa/Orang Tua), `POST /api/journals` (Guru/Wali Kelas), `GET /api/students` dan `POST /api/attendances` (Guru/Wali Kelas), route verifikasi izin (Wali Kelas/Guru BK), serta laporan presensi (Wali Kelas/Guru BK). Wali Kelas hanya dapat mengakses kelasnya; Orang Tua hanya dapat mengakses siswa yang ID-nya tertaut pada field `parent_id` akun Orang Tua. Foto jurnal dan pengajuan izin wajib karena kolom path pada skema database bersifat wajib. Registrasi API hanya menerima role Siswa; akun staf dan Orang Tua memakai alur provisioning website/admin. Endpoint ekspor presensi saat ini belum menghasilkan file PDF/Excel.
 
 Respons login yang berhasil:
 

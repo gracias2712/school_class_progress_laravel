@@ -5,19 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Schedule;
 use App\Models\Journal;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
 {
+    use AuthorizesApiRoles;
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'cycle_type' => ['sometimes', 'in:1,2'],
+            'student_id' => ['sometimes', 'integer'],
         ]);
 
-        $user = $request->user();
+        $user = $this->authorizeRoles($request, ['Guru', 'Wali Kelas', 'Siswa', 'Orang Tua']);
         $today = Carbon::today()->toDateString(); // Ambil tanggal hari ini di server
 
         $query = Schedule::query()
@@ -27,14 +31,24 @@ class ScheduleController extends Controller
                 'room:id,room_name',
             ]);
 
-        // Filter Role
-        // Wali Kelas juga pasti seorang guru, jadi mereka harus bisa melihat jadwal berdasarkan teacher_id mereka.
-        $roleName = strtolower($user->role->role_name ?? '');
-        
-        if (str_contains($roleName, 'guru') || str_contains($roleName, 'wali')) {
+        $roleName = $user->role?->role_name;
+        if (in_array($roleName, ['Guru', 'Wali Kelas'], true)) {
             $query->where('teacher_id', $user->id);
-        } elseif ((int) $user->role_id === 5) { // role_id 5 = Siswa
+        } elseif ($roleName === 'Siswa') {
+            abort_unless($user->class_id, 403, 'Akun siswa belum terhubung ke kelas.');
             $query->where('class_id', $user->class_id);
+        } else {
+            $student = User::query()
+                ->whereKey($user->parent_id)
+                ->whereHas('role', fn ($roles) => $roles->where('role_name', 'Siswa'))
+                ->first();
+            abort_unless($student && $student->class_id, 403, 'Akun Orang Tua belum terhubung ke siswa.');
+            abort_unless(
+                !isset($validated['student_id']) || (int) $validated['student_id'] === (int) $student->id,
+                403,
+                'Siswa tersebut tidak terhubung ke akun Anda.'
+            );
+            $query->where('class_id', $student->class_id);
         }
 
         // Filter Putaran

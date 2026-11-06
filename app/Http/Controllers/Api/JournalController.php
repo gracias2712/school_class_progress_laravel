@@ -10,14 +10,26 @@ use Illuminate\Support\Carbon;
 
 class JournalController extends Controller
 {
+    use AuthorizesApiRoles;
+
     public function store(Request $request)
     {
+        $user = $this->authorizeRoles($request, ['Guru', 'Wali Kelas']);
+
         // Validasi ekstensi dan batas ukuran file sesuai rubrik UKK
         $request->validate([
             'schedule_id' => 'required|exists:schedules,id',
             'topic_description' => 'required|string',
-            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048', 
+            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
+
+        abort_unless(
+            Schedule::whereKey($request->schedule_id)
+                ->where('teacher_id', $user->id)
+                ->exists(),
+            403,
+            'Jadwal tersebut bukan milik akun Anda.'
+        );
 
         $today = Carbon::today()->toDateString();
 

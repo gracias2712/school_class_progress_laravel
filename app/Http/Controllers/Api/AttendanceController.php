@@ -5,15 +5,26 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Schedule;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AttendanceController extends Controller
 {
+    use AuthorizesApiRoles;
+
     // Mengambil daftar siswa berdasarkan ID Kelas
     public function getStudents(Request $request)
     {
         $request->validate(['class_id' => 'required|integer']);
+        $user = $this->authorizeRoles($request, ['Guru', 'Wali Kelas']);
+        abort_unless(
+            Schedule::where('teacher_id', $user->id)
+                ->where('class_id', $request->class_id)
+                ->exists(),
+            403,
+            'Anda tidak mengajar kelas tersebut.'
+        );
 
         // Mengambil User yang memiliki role 'Siswa'
         $students = User::where('class_id', $request->class_id)
@@ -29,12 +40,31 @@ class AttendanceController extends Controller
     // Menyimpan presensi massal
     public function store(Request $request)
     {
+        $user = $this->authorizeRoles($request, ['Guru', 'Wali Kelas']);
         $request->validate([
-            'schedule_id' => 'required|integer',
+            'schedule_id' => 'required|exists:schedules,id',
             'attendances' => 'required|array',
             'attendances.*.student_id' => 'required|integer',
             'attendances.*.status' => 'required|in:Hadir,Sakit,Izin,Alpa'
         ]);
+
+        $schedule = Schedule::findOrFail($request->schedule_id);
+        abort_unless(
+            (int) $schedule->teacher_id === (int) $user->id,
+            403,
+            'Jadwal tersebut bukan milik akun Anda.'
+        );
+
+        $studentIds = collect($request->attendances)->pluck('student_id')->unique();
+        $validStudentCount = User::whereIn('id', $studentIds)
+            ->where('class_id', $schedule->class_id)
+            ->whereHas('role', fn ($query) => $query->where('role_name', 'Siswa'))
+            ->count();
+        abort_unless(
+            $validStudentCount === $studentIds->count(),
+            422,
+            'Daftar siswa tidak sesuai dengan kelas pada jadwal.'
+        );
 
         $today = Carbon::today()->toDateString();
 

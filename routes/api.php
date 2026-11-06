@@ -60,6 +60,7 @@ Route::post('deploy-migrate', function (Request $request) {
 // --- RUTE PUBLIK (TIDAK PERLU LOGIN) ---
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:6,1');
 Route::post('/register', [AuthController::class, 'register']);
+Route::get('/registration/classes', [AuthController::class, 'registrationClasses']);
 
 // Rute Lupa Password OTP
 Route::post('/forgot-password/send-otp', [AuthController::class, 'sendOtp']);
@@ -70,6 +71,7 @@ Route::post('/forgot-password/reset', [AuthController::class, 'resetPassword']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/children', [AuthController::class, 'children']);
 
     Route::get('/schedules', [ScheduleController::class, 'index']);
     
@@ -91,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/attendances', [AttendanceController::class, 'store']);
 
     Route::post('/leave-requests', [LeaveRequestController::class, 'store']);
+    Route::get('/leave-requests/mine', [LeaveRequestController::class, 'mine']);
     Route::post('/change-password', [\App\Http\Controllers\Api\AuthController::class, 'changePassword'])
     ->name('api.change-password');
 });

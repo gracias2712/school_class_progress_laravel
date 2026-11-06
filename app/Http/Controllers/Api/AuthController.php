@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\Classe;
 use App\Mail\SendOtpMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,9 +13,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Http\Controllers\Api\AuthorizesApiRoles;
 
 class AuthController extends Controller
 {
+    use AuthorizesApiRoles;
+
     public function login(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -45,6 +49,27 @@ class AuthController extends Controller
         return response()->json(['data' => $this->userData($user)]);
     }
 
+    public function children(Request $request): JsonResponse
+    {
+        $user = $this->authorizeRoles($request, ['Orang Tua']);
+
+        $student = $user->parent_id
+            ? User::query()->with('classe:id,class_name')
+                ->whereKey($user->parent_id)
+                ->whereHas('role', fn ($query) => $query->where('role_name', 'Siswa'))
+                ->first(['id', 'fullname', 'class_id'])
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'data' => $student ? [[
+                'id' => $student->id,
+                'fullname' => $student->fullname,
+                'class_name' => $student->classe?->class_name,
+            ]] : [],
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
@@ -62,7 +87,8 @@ class AuthController extends Controller
             'email'    => 'required|email|unique:users,email',
             'username' => 'required|string|max:50|unique:users,username',
             'password' => 'required|string|min:6',
-            'role'     => 'required|string'
+            'role'     => 'required|string|in:Siswa',
+            'class_id' => 'required|integer|exists:classes,id',
         ]);
 
         $role = Role::where('role_name', $validated['role'])->first();
@@ -76,9 +102,20 @@ class AuthController extends Controller
             'username' => $validated['username'],
             'password' => Hash::make($validated['password']),
             'role_id'  => $role->id,
+            'class_id' => $validated['class_id'],
         ]);
 
         return response()->json(['success' => true, 'message' => 'Registrasi berhasil! Silakan login.']);
+    }
+
+    public function registrationClasses(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => Classe::query()
+                ->orderBy('class_name')
+                ->get(['id', 'class_name']),
+        ]);
     }
 
     public function sendOtp(Request $request): JsonResponse

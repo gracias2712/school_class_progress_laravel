@@ -11,26 +11,31 @@ use Carbon\Carbon;
 
 class AttendanceReportController extends Controller
 {
-    public function getClasses()
+    use AuthorizesApiRoles;
+
+    public function getClasses(Request $request)
     {
+        $this->authorizeRoles($request, ['Guru BK']);
+
         $classes = Classe::orderBy('class_name')->pluck('class_name');
         return response()->json(['success' => true, 'data' => $classes]);
     }
 
     public function report(Request $request)
     {
-        $user = $request->user();
+        $user = $this->authorizeRoles($request, ['Wali Kelas', 'Guru BK']);
         
         $query = User::whereHas('role', function($q) { 
             $q->where('role_name', 'Siswa'); 
         });
 
-        if ($request->filled('class_name') && $request->class_name !== 'Semua Kelas') {
+        if ($user->role?->role_name === 'Wali Kelas') {
+            abort_unless($user->class_id, 403, 'Akun Wali Kelas belum terhubung ke kelas.');
+            $query->where('class_id', $user->class_id);
+        } elseif ($request->filled('class_name') && $request->class_name !== 'Semua Kelas') {
             $query->whereHas('classe', function($q) use ($request) {
                 $q->where('class_name', $request->class_name);
             });
-        } elseif ($user && $user->class_id) { 
-            $query->where('class_id', $user->class_id);
         }
 
         if ($request->filled('search')) {
@@ -67,6 +72,8 @@ class AttendanceReportController extends Controller
 
     public function export(Request $request)
     {
+        $this->authorizeRoles($request, ['Wali Kelas', 'Guru BK']);
+
         $format = $request->query('format', 'pdf');
         return response()->json(['message' => "Fungsi export $format berhasil dipanggil."]);
     }
