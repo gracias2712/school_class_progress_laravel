@@ -1,0 +1,80 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Schedule;
+use App\Models\Journal;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class ScheduleController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'cycle_type' => ['sometimes', 'in:1,2'],
+        ]);
+
+        $user = $request->user();
+        $today = Carbon::today()->toDateString(); // Ambil tanggal hari ini di server
+
+        $query = Schedule::query()
+            ->with([
+                'teacher:id,fullname',
+                'classe:id,class_name',
+                'room:id,room_name',
+            ]);
+
+        // Filter Role
+        // Wali Kelas juga pasti seorang guru, jadi mereka harus bisa melihat jadwal berdasarkan teacher_id mereka.
+        $roleName = strtolower($user->role->role_name ?? '');
+        
+        if (str_contains($roleName, 'guru') || str_contains($roleName, 'wali')) {
+            $query->where('teacher_id', $user->id);
+        } elseif ((int) $user->role_id === 5) { // role_id 5 = Siswa
+            $query->where('class_id', $user->class_id);
+        }
+
+        // Filter Putaran
+        if (isset($validated['cycle_type'])) {
+            $query->where('cycle_type', 'Putaran '.$validated['cycle_type']);
+        }
+
+        $schedules = $query
+            ->orderByRaw("FIELD(day_of_week, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu')")
+            ->orderBy('start_time')
+            ->get([
+                'id', 'teacher_id', 'class_id', 'room_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'cycle_type',
+            ]);
+
+        return response()->json([
+            'success' => true, 
+            'data' => $schedules->map(fn (Schedule $schedule) => [
+                'id' => $schedule->id,
+                'subject' => $schedule->subject,
+                'day_of_week' => $schedule->day_of_week,
+                'start_time' => $schedule->start_time,
+                'end_time' => $schedule->end_time,
+                'cycle_type' => $schedule->cycle_type,
+                // INDIKATOR BARU: Mengecek apakah jurnal sudah diisi hari ini
+                'is_filled_today' => Journal::where('schedule_id', $schedule->id)
+                                            ->where('date', $today)
+                                            ->exists(),
+                'teacher' => [
+                    'id' => $schedule->teacher?->id,
+                    'fullname' => $schedule->teacher?->fullname,
+                ],
+                'class' => [
+                    'id' => $schedule->classe?->id,
+                    'class_name' => $schedule->classe?->class_name,
+                ],
+                'room' => [
+                    'id' => $schedule->room?->id,
+                    'room_name' => $schedule->room?->room_name,
+                ],
+            ]),
+        ]);
+    }
+}
