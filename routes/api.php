@@ -10,9 +10,13 @@ use App\Http\Controllers\Api\AttendanceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
-Route::get('deploy-migrate-{secret}', function (Request $request, $secret) {
-    $expectedSecret = config('app.deploy_secret') ?: env('DEPLOY_SECRET') ?: 'skansaba_super_secret_token_12345';
-    if ($secret !== $expectedSecret && $secret !== 'skansaba_super_secret_token_12345') {
+Route::post('deploy-migrate', function (Request $request) {
+    $expectedSecret = config('app.deploy_secret');
+    if (! is_string($expectedSecret) || $expectedSecret === '') {
+        return response()->json(['status' => 'error', 'message' => 'Endpoint migrasi belum dikonfigurasi.'], 503);
+    }
+
+    if (! hash_equals($expectedSecret, (string) $request->bearerToken())) {
         return response()->json(['status' => 'error', 'message' => 'Akses ditolak: token salah.'], 403);
     }
 
@@ -50,7 +54,7 @@ Route::get('deploy-migrate-{secret}', function (Request $request, $secret) {
             'message' => 'Gagal migrasi: ' . $e->getMessage(),
         ], 500);
     }
-});
+    })->middleware('throttle:3,1');
 
 
 // --- RUTE PUBLIK (TIDAK PERLU LOGIN) ---

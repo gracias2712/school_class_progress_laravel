@@ -61,4 +61,6 @@ jobs:
             exit 1
           fi
           curl --fail-with-body --silent --show-error --max-time 120 \
-            "https://gracias-scp.web.id/api/deploy-migrate-${DEPLOY_SECRET}"
+            --request POST \
+            --header "Authorization: Bearer ${DEPLOY_SECRET}" \
+            "https://gracias-scp.web.id/api/deploy-migrate"
