@@ -28,12 +28,20 @@
         <div class="flex-1 overflow-y-auto p-4 md:p-8">
             @if(session('success')) <div class="bg-emerald-50 text-emerald-700 px-5 py-4 rounded-xl mb-6 font-bold">✅ {{ session('success') }}</div> @endif
             @if(session('error')) <div class="bg-red-50 text-red-700 px-5 py-4 rounded-xl mb-6 font-bold">❌ {{ session('error') }}</div> @endif
+            <div class="bg-blue-50 text-blue-800 px-5 py-4 rounded-xl mb-6 text-sm">
+                Akun Orang Tua dummy dibuat otomatis untuk setiap siswa yang belum terhubung. Username menggunakan NIS siswa dan password awalnya <strong>password</strong>. Ganti password setelah akun diberikan kepada orang tua.
+            </div>
             
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- FORM TAMBAH -->
                 <div class="lg:col-span-1">
                     <div class="bg-white rounded-3xl shadow-sm border p-6 sticky top-0">
                         <h3 class="text-lg font-extrabold text-slate-800 mb-4">➕ Tambah Akun Ortu</h3>
+                        @if($students->isEmpty())
+                            <p class="mb-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                                Semua siswa sudah memiliki akun Orang Tua yang terhubung.
+                            </p>
+                        @endif
                         <form action="{{ route('users.store') }}" method="POST" class="space-y-4">
                             @csrf
                             <input type="hidden" name="role_id" value="6">
@@ -44,7 +52,7 @@
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">NISP Orang Tua</label>
                                 <input type="text" name="nisn_nip" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                                <p class="text-[10px] text-slate-500 mt-1">*Username otomatis: <strong>ortu_NISP</strong></p>
+                                <p class="text-[10px] text-slate-500 mt-1">*Username otomatis: <strong>ortu_NISP</strong>. Password awal: <strong>password</strong>.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Email Ortu (Untuk Lupa Password)</label>
@@ -53,13 +61,13 @@
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Pilih Anak (Siswa)</label>
                                 <select name="student_id" id="student_select" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                                    <option value="">-- Cari & Pilih Siswa --</option>
+                                    <option value="">-- Pilih Siswa yang Belum Terhubung --</option>
                                     @foreach($students as $s)
                                         <option value="{{ $s->id }}">{{ $s->nisn_nip }} - {{ $s->fullname }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 rounded-xl mt-4">Simpan Akun</button>
+                            <button type="submit" @disabled($students->isEmpty()) class="w-full bg-teal-600 hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50 text-white font-bold py-3 rounded-xl mt-4">Simpan Akun</button>
                         </form>
                     </div>
                 </div>
@@ -80,7 +88,7 @@
                                 <tr class="border-b border-slate-50">
                                     <td class="py-3 px-4">
                                         <p class="font-bold text-slate-800">{{ $u->fullname }}</p>
-                                        <p class="text-xs text-slate-500">NISP: {{ $u->nisn_nip }} | @ {{ $u->username }}</p>
+                                        <p class="text-xs text-slate-500">NISP: {{ $u->nisn_nip ?? '-' }} | @ {{ $u->username }}</p>
                                         <p class="text-xs text-indigo-600"> {{ $u->email ?? 'Belum ada email' }}</p>
                                     </td>
                                     <td class="py-3 px-4 text-xs">

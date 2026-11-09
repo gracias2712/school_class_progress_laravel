@@ -83,7 +83,7 @@ class SiswaSheetImport implements ToCollection
                 $nama = $col2;
                 $username = strtolower($nis);
 
-                User::updateOrCreate(
+                $student = User::updateOrCreate(
                     ['username' => $username], 
                     [
                         'fullname' => strtoupper($nama),
@@ -94,6 +94,10 @@ class SiswaSheetImport implements ToCollection
                         'password' => $this->defaultPassword,
                     ]
                 );
+
+                if ((int) $this->role_id === 5) {
+                    app(\App\Services\DummyParentAccountService::class)->ensureForStudent($student);
+                }
 
                 Log::info("Data Siswa Disimpan: NIS " . $nis . " dengan class_id " . $currentClassId);
             }

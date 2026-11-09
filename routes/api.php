@@ -70,6 +70,7 @@ Route::post('/forgot-password/reset', [AuthController::class, 'resetPassword']);
 // --- RUTE TERPROTEKSI (WAJIB LOGIN) ---
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/children', [AuthController::class, 'children']);
 

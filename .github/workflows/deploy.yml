@@ -1,47 +1,63 @@
-name: Deploy Laravel Blade to DomaiNesia
+name: Deploy Laravel to cPanel
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    name: Build & FTP Deploy
+    name: Build and deploy
 
     steps:
-      - name: ⬇️ Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐘 Setup PHP
+      - name: Validate deployment secrets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+        run: |
+          for name in FTP_SERVER FTP_USERNAME FTP_PASSWORD FTP_SERVER_DIR DEPLOY_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "GitHub Actions secret $name is not configured."
+              exit 1
+            fi
+          done
+
+      - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, fileinfo, gd, zip, curl
           coverage: none
 
-      - name: 📦 Install Composer Dependencies
-        run: |
-          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
+      - name: Install Composer dependencies
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
 
-      - name: 🟢 Setup Node.js & Compile Vite Assets
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: |
-          npm ci || npm install
+
+      - name: Build frontend assets
+        run: |
+          npm install
           npm run build
 
-      - name: 🚀 Sync Files via FTP to DomaiNesia
+      - name: Sync files via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           port: ${{ secrets.FTP_PORT || 21 }}
-          protocol: ftp
-          server-dir: ${{ secrets.FTP_SERVER_DIR || '/' }}
+          protocol: ftps
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
           exclude: |
             **/.git*
             **/.git*/**
@@ -49,17 +65,18 @@ jobs:
             tests/**
             .env
             .env.example
+            public/storage/**
+            storage/app/public/**
+            storage/logs/**
+            storage/framework/**
+            database/*.sqlite
             *.md
             phpunit.xml
 
-      - name: ⚡ Trigger Database Migration di Hosting
+      - name: Run database migrations
         env:
           DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
         run: |
-          if [ -z "$DEPLOY_SECRET" ]; then
-            echo "DEPLOY_SECRET is not configured in GitHub repository secrets."
-            exit 1
-          fi
           curl --fail-with-body --silent --show-error --max-time 120 \
             --request POST \
             --header "Authorization: Bearer ${DEPLOY_SECRET}" \

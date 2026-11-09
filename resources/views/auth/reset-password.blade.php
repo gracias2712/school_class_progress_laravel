@@ -19,14 +19,14 @@
             <!-- Input Password Baru -->
             <div class="relative">
                 <label class="block text-slate-700 text-sm font-bold mb-1">Password Baru</label>
-                <input type="password" name="password" id="pass1" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition pr-12">
+                <input type="password" name="password" id="pass1" required minlength="6" inputmode="text" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="Minimal 6 karakter" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition pr-12">
                 <button type="button" onclick="togglePass('pass1')" class="absolute right-3 top-9 text-slate-400 hover:text-slate-600">👁️</button>
             </div>
 
             <!-- Input Ulangi Password -->
             <div class="relative">
                 <label class="block text-slate-700 text-sm font-bold mb-1">Ulangi Password Baru</label>
-                <input type="password" name="password_confirmation" id="pass2" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition pr-12">
+                <input type="password" name="password_confirmation" id="pass2" required minlength="6" inputmode="text" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="Ulangi password baru" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition pr-12">
                 <button type="button" onclick="togglePass('pass2')" class="absolute right-3 top-9 text-slate-400 hover:text-slate-600">👁️</button>
             </div>
 

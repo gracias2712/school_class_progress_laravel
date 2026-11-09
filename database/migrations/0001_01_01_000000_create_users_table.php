@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('username', 50)->unique();
             $table->string('password');
             $table->string('fullname', 100);
+            $table->string('nisn_nip', 50)->nullable();
+            $table->string('subject', 100)->nullable();
             $table->timestamps();
         });
 

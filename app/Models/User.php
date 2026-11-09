@@ -18,7 +18,6 @@ class User extends Authenticatable
         'role_id',
         'class_id',
         'parent_id',
-        'parent_id',
         'username',
         'password',
         'fullname',
@@ -62,7 +61,7 @@ class User extends Authenticatable
         return $this->hasMany(LeaveRequest::class, 'student_id');
     }
 
-    public function student()
+    public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');
     }

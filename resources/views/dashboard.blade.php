@@ -19,7 +19,7 @@
     <!-- KONTEN UTAMA -->
     <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
         
-        <header class="bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-200 p-5 flex justify-between items-center z-10">
+        <header class="bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-200 p-4 md:p-5 flex justify-between items-center z-10">
             <div>
                 <h1 class="text-xl font-extrabold text-slate-800 tracking-tight">Overview</h1>
             </div>

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Http\Controllers\Api\AuthorizesApiRoles;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -47,6 +48,44 @@ class AuthController extends Controller
     {
         $user = $request->user()->load(['role', 'classe']);
         return response()->json(['data' => $this->userData($user)]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $this->authorizeRoles($request, [
+            'Guru',
+            'Wali Kelas',
+            'Guru BK',
+            'Siswa',
+            'Orang Tua',
+        ]);
+
+        $validated = $request->validate([
+            'username' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('users', 'username')->ignore($user->id),
+            ],
+            'email' => [
+                'nullable',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+        ]);
+
+        $user->update([
+            'username' => $validated['username'],
+            'email' => $validated['email'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profil berhasil diperbarui.',
+            'data' => $this->userData($user->load(['role', 'classe'])),
+        ]);
     }
 
     public function children(Request $request): JsonResponse
