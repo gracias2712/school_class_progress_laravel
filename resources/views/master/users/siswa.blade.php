@@ -47,7 +47,7 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">NIS / NISN (Otomatis jadi Username)</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">NIS (Otomatis jadi Username)</label>
                                 <input type="text" name="nisn_nip" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 outline-none">
                                 <p class="text-[10px] text-slate-400 mt-1">*Password default otomatis: <b>password</b></p>
                             </div>
