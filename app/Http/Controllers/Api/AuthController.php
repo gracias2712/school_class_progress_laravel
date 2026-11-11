@@ -92,20 +92,20 @@ class AuthController extends Controller
     {
         $user = $this->authorizeRoles($request, ['Orang Tua']);
 
-        $student = $user->parent_id
-            ? User::query()->with('classe:id,class_name')
-                ->whereKey($user->parent_id)
-                ->whereHas('role', fn ($query) => $query->where('role_name', 'Siswa'))
-                ->first(['id', 'fullname', 'class_id'])
-            : null;
+        $students = User::query()
+            ->with('classe:id,class_name')
+            ->whereIn('id', $user->linkedStudentIds())
+            ->whereHas('role', fn ($query) => $query->where('role_name', 'Siswa'))
+            ->orderBy('fullname')
+            ->get(['id', 'fullname', 'class_id']);
 
         return response()->json([
             'success' => true,
-            'data' => $student ? [[
+            'data' => $students->map(fn (User $student) => [
                 'id' => $student->id,
                 'fullname' => $student->fullname,
                 'class_name' => $student->classe?->class_name,
-            ]] : [],
+            ])->values(),
         ]);
     }
 

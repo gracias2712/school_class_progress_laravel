@@ -55,6 +55,24 @@ class ApiMobileAccessTest extends TestCase
             ->assertJsonPath('data.0.fullname', 'Siswa');
     }
 
+    public function test_guardian_child_list_includes_all_linked_students(): void
+    {
+        $studentOne = $this->userWithRole('Siswa');
+        $studentTwo = $this->userWithRole('Siswa', [
+            'username' => 'siswa-dua',
+            'fullname' => 'Siswa Kedua',
+        ]);
+        $guardian = $this->userWithRole('Orang Tua');
+        $guardian->students()->attach([$studentOne->id, $studentTwo->id]);
+
+        $this->actingAs($guardian, 'sanctum')
+            ->getJson('/api/children')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['id' => $studentOne->id, 'fullname' => 'Siswa'])
+            ->assertJsonFragment(['id' => $studentTwo->id, 'fullname' => 'Siswa Kedua']);
+    }
+
     public function test_guardian_cannot_select_an_unlinked_student_schedule(): void
     {
         $linkedStudent = $this->userWithRole('Siswa');

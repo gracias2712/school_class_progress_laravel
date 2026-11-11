@@ -50,6 +50,18 @@
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">{{ old('reason') }}</textarea>
                 </div>
 
+                @if($user->role_id == 6)
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Siswa</label>
+                        <select name="student_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Pilih siswa --</option>
+                            @foreach($students as $student)
+                                <option value="{{ $student->id }}" @selected(old('student_id') == $student->id)>{{ $student->fullname }} ({{ $student->classe?->class_name ?? 'Kelas belum diatur' }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+
                 <div class="mb-6">
                     <label class="block text-gray-700 text-sm font-bold mb-2">Unggah Bukti Surat (PDF / JPG / PNG)</label>
                     <input type="file" name="document" accept=".pdf, .jpg, .jpeg, .png" required 

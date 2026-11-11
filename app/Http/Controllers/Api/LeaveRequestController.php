@@ -11,12 +11,11 @@ class LeaveRequestController extends Controller
 {
     use AuthorizesApiRoles;
 
-    public function pending(Request $request)
+    public function index(Request $request)
     {
         $user = $this->authorizeRoles($request, ['Wali Kelas', 'Guru BK']);
 
         $query = LeaveRequest::with(['student', 'applicant'])
-            ->where('status_approval', 'Pending')
             ->orderByDesc('created_at');
 
         if ($user->role?->role_name === 'Wali Kelas') {
@@ -32,7 +31,7 @@ class LeaveRequestController extends Controller
                 'reason'       => $req->reason,
                 'start_date'   => $req->start_date,
                 'end_date'     => $req->end_date,
-                'status'       => $req->status_approval,
+                'status'       => $req->status_approval, // Menyimpan Pending, Approved, atau Rejected
             ];
         });
 
@@ -49,7 +48,7 @@ class LeaveRequestController extends Controller
         return $this->updateStatus($request, $id, 'Rejected', 'Izin ditolak.');
     }
 
-    public function store(Request $request)
+   public function store(Request $request)
     {
         $user = $this->authorizeRoles($request, ['Siswa', 'Orang Tua']);
         $validated = $request->validate([
@@ -64,15 +63,27 @@ class LeaveRequestController extends Controller
             $studentId = $user->id;
         } else {
             $studentId = $validated['student_id'] ?? null;
-            abort_unless(
-                $studentId
-                    && (int) $studentId === (int) $user->parent_id
-                    && User::whereKey($studentId)
-                        ->whereHas('role', fn ($roles) => $roles->where('role_name', 'Siswa'))
-                        ->exists(),
-                403,
-                'Pilih siswa yang terhubung ke akun Anda.'
-            );
+            $linkedStudentIds = $user->linkedStudentIds();
+            $studentId ??= $linkedStudentIds->count() === 1 ? $linkedStudentIds->first() : null;
+            abort_unless($studentId && $linkedStudentIds->contains((int) $studentId), 403, 'Pilih siswa yang terhubung ke akun Anda.');
+        }
+
+        // Validasi Cegah Izin Dobel / Overlap Tanggal
+        $existingLeave = LeaveRequest::where('student_id', $studentId)
+            ->whereIn('status_approval', ['Pending', 'Approved'])
+            ->where(function ($query) use ($validated) {
+                // Logika mendeteksi jika tanggal bersinggungan
+                $query->where('start_date', '<=', $validated['end_date'])
+                      ->where('end_date', '>=', $validated['start_date']);
+            })
+            ->first();
+
+        // Jika ditemukan izin yang bentrok, tolak!
+        if ($existingLeave) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal: Siswa sudah memiliki pengajuan izin pada tanggal tersebut (' . $existingLeave->start_date . ' s/d ' . $existingLeave->end_date . ').'
+            ], 409);
         }
 
         $photoPath = $request->file('photo')->store('leave_requests', 'public');
@@ -86,7 +97,11 @@ class LeaveRequestController extends Controller
             'status_approval' => 'Pending',
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Pengajuan izin berhasil dikirim.', 'data' => $leave]);
+        return response()->json([
+            'success' => true, 
+            'message' => 'Pengajuan izin berhasil dikirim.', 
+            'data' => $leave
+        ]);
     }
 
     public function mine(Request $request)
@@ -98,17 +113,10 @@ class LeaveRequestController extends Controller
             $studentIds = [$user->id];
         } else {
             if (isset($validated['student_id'])) {
-                abort_unless(
-                    (int) $validated['student_id'] === (int) $user->parent_id
-                        && User::whereKey($validated['student_id'])
-                            ->whereHas('role', fn ($roles) => $roles->where('role_name', 'Siswa'))
-                            ->exists(),
-                    403,
-                    'Siswa tersebut tidak terhubung ke akun Anda.'
-                );
+                abort_unless($user->linkedStudentIds()->contains((int) $validated['student_id']), 403, 'Siswa tersebut tidak terhubung ke akun Anda.');
                 $studentIds = [$validated['student_id']];
             } else {
-                $studentIds = $user->parent_id ? [$user->parent_id] : [];
+                $studentIds = $user->linkedStudentIds()->all();
             }
         }
 

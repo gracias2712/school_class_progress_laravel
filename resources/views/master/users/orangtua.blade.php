@@ -28,8 +28,13 @@
         <div class="flex-1 overflow-y-auto p-4 md:p-8">
             @if(session('success')) <div class="bg-emerald-50 text-emerald-700 px-5 py-4 rounded-xl mb-6 font-bold">✅ {{ session('success') }}</div> @endif
             @if(session('error')) <div class="bg-red-50 text-red-700 px-5 py-4 rounded-xl mb-6 font-bold">❌ {{ session('error') }}</div> @endif
+            @if($errors->any())
+                <div class="bg-red-50 text-red-700 px-5 py-4 rounded-xl mb-6 font-bold">
+                    @foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+                </div>
+            @endif
             <div class="bg-blue-50 text-blue-800 px-5 py-4 rounded-xl mb-6 text-sm">
-                Akun Orang Tua dummy dibuat otomatis untuk setiap siswa yang belum terhubung. Username menggunakan NIS siswa dan password awalnya <strong>password</strong>. Ganti password setelah akun diberikan kepada orang tua.
+                Akun Orang Tua dibuat manual oleh Waka dan ditautkan ke satu siswa.
             </div>
             
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -39,7 +44,7 @@
                         <h3 class="text-lg font-extrabold text-slate-800 mb-4">➕ Tambah Akun Ortu</h3>
                         @if($students->isEmpty())
                             <p class="mb-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-                                Semua siswa sudah memiliki akun Orang Tua yang terhubung.
+                                Tidak ada siswa yang belum memiliki akun Orang Tua.
                             </p>
                         @endif
                         <form action="{{ route('users.store') }}" method="POST" class="space-y-4">
@@ -52,16 +57,15 @@
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">NISP Orang Tua</label>
                                 <input type="text" name="nisn_nip" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                                <p class="text-[10px] text-slate-500 mt-1">*Username otomatis: <strong>ortu_NISP</strong>. Password awal: <strong>password</strong>.</p>
+                                <p class="text-[10px] text-slate-500 mt-1">*Username otomatis berdasarkan NISP. Password awal: <strong>password</strong>.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Email Ortu (Untuk Lupa Password)</label>
                                 <input type="email" name="email" placeholder="orangtua@gmail.com" class="w-full px-3 py-2 border rounded-lg text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Pilih Anak (Siswa)</label>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Pilih Siswa</label>
                                 <select name="student_id" id="student_select" required class="w-full px-3 py-2 border rounded-lg text-sm">
-                                    <option value="">-- Pilih Siswa yang Belum Terhubung --</option>
                                     @foreach($students as $s)
                                         <option value="{{ $s->id }}">{{ $s->nisn_nip }} - {{ $s->fullname }}</option>
                                     @endforeach
@@ -92,9 +96,11 @@
                                         <p class="text-xs text-indigo-600"> {{ $u->email ?? 'Belum ada email' }}</p>
                                     </td>
                                     <td class="py-3 px-4 text-xs">
-                                        @if($u->student)
-                                            <span class="font-bold text-indigo-600">{{ $u->student->fullname }}</span><br>
-                                            <span class="text-slate-500">NIS: {{ $u->student->nisn_nip }}</span>
+                                        @if($u->students->isNotEmpty())
+                                            @foreach($u->students as $student)
+                                                <span class="font-bold text-indigo-600">{{ $student->fullname }}</span>
+                                                <span class="text-slate-500">(NIS: {{ $student->nisn_nip ?? '-' }})</span><br>
+                                            @endforeach
                                         @else
                                             <span class="text-red-500 italic">Belum terhubung</span>
                                         @endif
@@ -118,8 +124,7 @@
         $(document).ready(function() { 
             $('#dataTable').DataTable({"pageLength": 10}); 
             $('#student_select').select2({
-                placeholder: "-- Cari & Pilih Siswa --",
-                allowClear: true
+                placeholder: "-- Cari & Pilih Siswa --"
             });
         }); 
     </script>

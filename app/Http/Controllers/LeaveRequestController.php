@@ -18,7 +18,11 @@ class LeaveRequestController extends Controller
             return redirect('/dashboard')->with('error', 'Akses ditolak. Hanya Siswa dan Orang Tua yang dapat mengajukan izin.');
         }
 
-        return view('leave_requests.create', compact('user'));
+        $students = $user->role_id == 6
+            ? \App\Models\User::query()->whereIn('id', $user->linkedStudentIds())->orderBy('fullname')->get()
+            : collect();
+
+        return view('leave_requests.create', compact('user', 'students'));
     }
 
     // Memproses data yang dikirim dari form
@@ -30,6 +34,7 @@ class LeaveRequestController extends Controller
             'end_date'   => 'required|date|after_or_equal:start_date',
             'reason'     => 'required|string',
             'document'   => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048', // Maksimal 2MB
+            'student_id' => 'required_if:role_id,6|nullable|integer',
         ], [
             'document.mimes' => 'Format file harus berupa PDF, JPG, JPEG, atau PNG.',
             'document.max'   => 'Ukuran file maksimal adalah 2MB.',
@@ -41,7 +46,12 @@ class LeaveRequestController extends Controller
         // 2. Menentukan ID Siswa
         // Jika yang login Siswa, id-nya adalah id-nya sendiri.
         // Jika Orang Tua, id siswanya diambil dari parent_id yang diisi saat registrasi tadi.
-        $studentId = $user->role_id == 5 ? $user->id : $user->parent_id;
+        $studentId = $user->role_id == 5 ? $user->id : $request->input('student_id');
+        if ($user->role_id == 6) {
+            $linkedStudentIds = $user->linkedStudentIds();
+            $studentId ??= $linkedStudentIds->count() === 1 ? $linkedStudentIds->first() : null;
+            abort_unless($studentId && $linkedStudentIds->contains((int) $studentId), 403, 'Pilih siswa yang terhubung ke akun Anda.');
+        }
 
         // 3. Proses Upload File ke folder storage/app/public/leave_documents
         $documentPath = $request->file('document')->store('leave_documents', 'public');
@@ -54,7 +64,7 @@ class LeaveRequestController extends Controller
             'end_date'        => $request->end_date,
             'reason'          => $request->reason,
             'document_path'   => $documentPath,
-            'status_approval' => 'Pending', // Status awal selalu Pending
+            'status_approval' => 'Pending',
         ]);
 
         return redirect('/dashboard')->with('success', 'Pengajuan izin berhasil dikirim dan sedang menunggu persetujuan Wali Kelas atau Guru BK.');

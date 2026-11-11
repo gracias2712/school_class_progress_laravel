@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\DummyParentAccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -43,33 +42,40 @@ class UserController extends Controller
     // Arahkan Siswa ke view spesifik (siswa.blade.php)
     public function indexSiswa() { return $this->getRoleData(5, 'siswa', 'Siswa'); }
 
-    // indexOrangTua untuk menampilkan dropdown pilihan siswa
-    public function indexOrangTua(DummyParentAccountService $parentAccounts) {
+    public function indexOrangTua() {
         $this->checkAccess();
-        $parentAccounts->ensureForAllStudents();
 
         $role_id = 6;
         $title = 'Orang Tua';
 
-        // Ambil data orang tua beserta relasi siswanya
-        $users = User::with('student')
+        $users = User::query()
             ->where('role_id', $role_id)
             ->whereNotNull('username')
             ->orderBy('fullname', 'asc')
             ->get();
 
-        $linkedStudentIds = User::query()
-            ->where('role_id', $role_id)
-            ->get(['student_id', 'parent_id'])
-            ->flatMap(fn (User $parent) => [$parent->student_id, $parent->parent_id])
-            ->filter()
-            ->unique();
+        $studentsById = User::query()
+            ->where('role_id', 5)
+            ->whereIn('id', $users->pluck('student_id')->merge($users->pluck('parent_id'))->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        $linkedStudentIds = collect();
+        foreach ($users as $guardian) {
+            $studentId = $guardian->student_id ?: $guardian->parent_id;
+            $linkedStudent = $studentsById->get($studentId);
+            $guardian->setRelation('students', $linkedStudent ? collect([$linkedStudent]) : collect());
+            if ($linkedStudent) {
+                $linkedStudentIds->push($linkedStudent->id);
+            }
+        }
 
         $students = User::query()
             ->where('role_id', 5)
-            ->whereNotIn('id', $linkedStudentIds)
             ->orderBy('fullname', 'asc')
-            ->get();
+            ->get()
+            ->whereNotIn('id', $linkedStudentIds->unique())
+            ->values();
 
         return view('master.users.orangtua', compact('users', 'students', 'title', 'role_id'));
     }
@@ -82,33 +88,39 @@ class UserController extends Controller
             'role_id'         => 'required|exists:roles,id',
             'user_identifier' => 'required_unless:role_id,5|string|max:100',
             'fullname'        => 'required_if:role_id,5|string|max:100',
-            'nisn_nip'        => 'nullable|string|max:50',
+            'nisn_nip'        => 'required_if:role_id,6|nullable|string|max:50',
             'class_id'        => 'nullable|exists:classes,id',
             'subject'         => 'nullable|string|max:100',
-            'email'           => 'nullable|email|max:100',
-            'student_id'      => [
+            'email'           => ['nullable', 'email', 'max:100', Rule::unique('users', 'email')],
+            'student_id' => [
                 'required_if:role_id,6',
                 'nullable',
+                'integer',
                 Rule::exists('users', 'id')->where(fn ($query) => $query->where('role_id', 5)),
-                Rule::unique('users', 'student_id'),
+                Rule::unique('users', 'student_id')->where(fn ($query) => $query->where('role_id', 6)),
+                Rule::unique('users', 'parent_id')->where(fn ($query) => $query->where('role_id', 6)),
             ],
         ];
 
-        // Jika bukan Siswa(5) dan bukan Ortu(6), username wajib diisi
         if ($request->role_id != 5 && $request->role_id != 6) {
             $rules['username'] = 'required|string|max:50|unique:users,username';
         }
 
         $request->validate($rules);
 
-        // LOGIKA USERNAME OTOMATIS
         $username = strtolower($request->username ?? '');
         $password = 'password';
 
         if ($request->role_id == 5) {
-            $username = strtolower($request->nisn_nip); // Username Siswa = NIS/NISN
+            $username = strtolower($request->nisn_nip);
         } elseif ($request->role_id == 6) {
-            $username = 'ortu_' . strtolower($request->nisn_nip); // Username Ortu = ortu_NIS
+            $usernameBase = 'ortu_'.strtolower($request->nisn_nip ?: 'wali');
+            $username = $usernameBase;
+            $suffix = 1;
+            while (User::query()->where('username', $username)->exists()) {
+                $username = $usernameBase.'_'.$suffix;
+                $suffix++;
+            }
         }
 
         $dataToSave = [
@@ -117,18 +129,14 @@ class UserController extends Controller
             'nisn_nip'   => $request->nisn_nip,
             'class_id'   => $request->class_id,
             'subject'    => strtoupper($request->subject),
-            'email'      => $request->email ?? ($username . '@ukkscp.com'),
+            'email'      => $request->email ?? ($username.'@ukkscp.com'),
             'username'   => $username,
             'student_id' => $request->role_id == 6 ? $request->student_id : null,
             'parent_id'  => $request->role_id == 6 ? $request->student_id : null,
             'password'   => Hash::make($password),
         ];
 
-        $user = User::create($dataToSave);
-
-        if ((int) $request->role_id === 5) {
-            app(DummyParentAccountService::class)->ensureForStudent($user);
-        }
+        User::create($dataToSave);
 
         return redirect()->back()->with('success', 'Akun Pengguna berhasil ditambahkan!');
     }
@@ -189,7 +197,7 @@ class UserController extends Controller
     }
 
     // FUNGSI IMPORT DATA SISWA
-    public function importSiswa(Request $request, DummyParentAccountService $parentAccounts)
+    public function importSiswa(Request $request)
     {
         $request->validate([
             'file'    => 'required|mimes:xlsx,xls,csv',
@@ -197,10 +205,6 @@ class UserController extends Controller
         ]);
 
         Excel::import(new \App\Imports\SiswaImport($request->role_id), $request->file('file'));
-
-        if ((int) $request->role_id === 5) {
-            $parentAccounts->ensureForAllStudents();
-        }
 
         return redirect()->back()->with('success', 'Data Siswa berhasil diimport!');
     }

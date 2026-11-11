@@ -22,7 +22,7 @@ class ScheduleController extends Controller
         ]);
 
         $user = $this->authorizeRoles($request, ['Guru', 'Wali Kelas', 'Siswa', 'Orang Tua']);
-        $today = Carbon::today()->toDateString(); // Ambil tanggal hari ini di server
+        $today = Carbon::today()->toDateString(); 
 
         $query = Schedule::query()
             ->with([
@@ -32,23 +32,33 @@ class ScheduleController extends Controller
             ]);
 
         $roleName = $user->role?->role_name;
+        
         if (in_array($roleName, ['Guru', 'Wali Kelas'], true)) {
-            $query->where('teacher_id', $user->id);
+            $query->whereBelongsTo($user, 'teacher');
         } elseif ($roleName === 'Siswa') {
             abort_unless($user->class_id, 403, 'Akun siswa belum terhubung ke kelas.');
             $query->where('class_id', $user->class_id);
         } else {
-            $student = User::query()
-                ->whereKey($user->parent_id)
+            $studentIds = $user->linkedStudentIds();
+            abort_unless($studentIds->isNotEmpty(), 403, 'Akun Orang Tua belum terhubung ke siswa.');
+
+            if (isset($validated['student_id'])) {
+                abort_unless(
+                    $studentIds->contains((int) $validated['student_id']),
+                    403,
+                    'Siswa tersebut tidak terhubung ke akun Anda.'
+                );
+                $studentIds = collect([(int) $validated['student_id']]);
+            }
+
+            $classIds = User::query()
+                ->whereIn('id', $studentIds)
                 ->whereHas('role', fn ($roles) => $roles->where('role_name', 'Siswa'))
-                ->first();
-            abort_unless($student && $student->class_id, 403, 'Akun Orang Tua belum terhubung ke siswa.');
-            abort_unless(
-                !isset($validated['student_id']) || (int) $validated['student_id'] === (int) $student->id,
-                403,
-                'Siswa tersebut tidak terhubung ke akun Anda.'
-            );
-            $query->where('class_id', $student->class_id);
+                ->whereNotNull('class_id')
+                ->pluck('class_id')
+                ->unique();
+            abort_unless($classIds->isNotEmpty(), 403, 'Siswa belum terhubung ke kelas.');
+            $query->whereIn('class_id', $classIds);
         }
 
         // Filter Putaran
@@ -57,7 +67,7 @@ class ScheduleController extends Controller
         }
 
         $schedules = $query
-            ->orderByRaw("FIELD(day_of_week, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu')")
+            ->orderByRaw("CASE day_of_week WHEN 'Senin' THEN 1 WHEN 'Selasa' THEN 2 WHEN 'Rabu' THEN 3 WHEN 'Kamis' THEN 4 WHEN 'Jumat' THEN 5 WHEN 'Sabtu' THEN 6 WHEN 'Minggu' THEN 7 ELSE 8 END")
             ->orderBy('start_time')
             ->get([
                 'id', 'teacher_id', 'class_id', 'room_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'cycle_type',
@@ -72,7 +82,6 @@ class ScheduleController extends Controller
                 'start_time' => $schedule->start_time,
                 'end_time' => $schedule->end_time,
                 'cycle_type' => $schedule->cycle_type,
-                // INDIKATOR BARU: Mengecek apakah jurnal sudah diisi hari ini
                 'is_filled_today' => Journal::where('schedule_id', $schedule->id)
                                             ->where('date', $today)
                                             ->exists(),
